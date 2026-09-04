@@ -1,0 +1,41 @@
+# Ambiente e credenciais
+.env
+*.env
+!.env.example
+.venv/
+venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Modelos e dados -- nunca versionar
+*.pt
+*.onnx
+runs/
+datasets/
+ml/raw/
+ml/work/
+uploads/*
+!uploads/.gitkeep
+
+# Imagens soltas
+*.jpg
+*.jpeg
+*.png
+!docs/**/*.png
+
+# Credenciais de servico
+kaggle.json
+firebase-*.json
+*serviceAccount*.json
+
+# Editor e SO
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini

@@ -1,0 +1,27 @@
+# Provisiona apenas o banco de dados. A API roda nativamente no Python
+# do desenvolvedor (decisao 2.5 do plano de backend).
+#
+#   docker compose up -d      sobe o banco
+#   docker compose down       para o banco, preservando os dados
+#   docker compose down -v    para e APAGA os dados
+
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    container_name: miiu_db
+    environment:
+      POSTGRES_USER: miiu
+      POSTGRES_PASSWORD: miiu_dev
+      POSTGRES_DB: miiu
+    ports:
+      - "5432:5432"
+    volumes:
+      - miiu_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U miiu -d miiu"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  miiu_pgdata:
