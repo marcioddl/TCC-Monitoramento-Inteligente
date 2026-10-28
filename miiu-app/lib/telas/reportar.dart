@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -27,7 +25,8 @@ class _TelaReportarState extends State<TelaReportar> {
   final ImagePicker _seletor = ImagePicker();
   final TextEditingController _descricao = TextEditingController();
 
-  XFile? _foto;
+  // bytes da foto: servem para a previa e para o envio, no Android e na web
+  Uint8List? _foto;
   Position? _posicao;
   String? _erroGps;
   bool _localizando = false;
@@ -82,7 +81,9 @@ class _TelaReportarState extends State<TelaReportar> {
         maxHeight: 1920,
         imageQuality: 85,
       );
-      if (foto != null && mounted) setState(() => _foto = foto);
+      if (foto == null) return;
+      final bytes = await foto.readAsBytes();
+      if (mounted) setState(() => _foto = bytes);
     } on PlatformException catch (e) {
       _avisar('Não foi possível abrir a câmera: ${e.message ?? e.code}');
     }
@@ -104,7 +105,7 @@ class _TelaReportarState extends State<TelaReportar> {
     setState(() => _enviando = true);
     try {
       final criada = await Api.reportar(
-        caminhoImagem: foto.path,
+        imagem: foto,
         latitude: posicao.latitude,
         longitude: posicao.longitude,
         precisaoM: posicao.accuracy,
@@ -136,7 +137,7 @@ class _TelaReportarState extends State<TelaReportar> {
           if (foto != null)
             AspectRatio(
               aspectRatio: 4 / 3,
-              child: Image.file(File(foto.path), fit: BoxFit.cover),
+              child: Image.memory(foto, fit: BoxFit.cover),
             )
           else
             Container(

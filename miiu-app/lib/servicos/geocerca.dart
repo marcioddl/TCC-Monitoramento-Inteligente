@@ -49,7 +49,8 @@ class ServicoGeocerca {
 
     await _assinatura?.cancel();
     final LocationSettings ajustes;
-    if (defaultTargetPlatform == TargetPlatform.android) {
+    // na web (inclusive no navegador do celular) nao ha servico em segundo plano
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
       ajustes = AndroidSettings(
         accuracy: LocationAccuracy.high,
         distanceFilter: 15,

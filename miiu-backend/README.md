@@ -21,6 +21,7 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 - Documentação interativa: http://localhost:8000/docs
 - Painel de gestão: http://localhost:8000/painel (senha = `ADMIN_SENHA` do `.env`)
+- App do cidadão na web: http://localhost:8000/app/ (depois do `flutter build web`, veja o README do app)
 - Saúde do sistema: http://localhost:8000/health
 
 `--host 0.0.0.0` deixa o celular da mesma rede Wi-Fi acessar a API pelo IP do

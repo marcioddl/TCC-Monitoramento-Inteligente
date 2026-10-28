@@ -65,6 +65,12 @@ _painel = Path(config.PAINEL_DIR)
 if _painel.is_dir() and (_painel / "index.html").is_file():
     app.mount("/painel", StaticFiles(directory=_painel, html=True), name="painel")
 
+# App do cidadao compilado para a web (flutter build web --base-href /app/),
+# quando existir. Servido aqui, ele fala com a API no mesmo endereco, sem CORS.
+_app_web = Path(config.APP_WEB_DIR)
+if _app_web.is_dir() and (_app_web / "index.html").is_file():
+    app.mount("/app", StaticFiles(directory=_app_web, html=True), name="app_web")
+
 
 @app.get("/", include_in_schema=False)
 def raiz():

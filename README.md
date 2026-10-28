@@ -10,7 +10,7 @@ Sousa.
 |---|---|---|
 | `miiu-backend/` | API FastAPI + PostgreSQL/PostGIS, YOLOv8, geofencing, FCM | [README](miiu-backend/README.md) |
 | `painel/` | Painel de gestão React + Leaflet (já compilado) | http://localhost:8000/painel |
-| `miiu-app/` | Aplicativo do cidadão em Flutter | [README](miiu-app/README.md) |
+| `miiu-app/` | Aplicativo do cidadão em Flutter (Android e web) | [README](miiu-app/README.md) · versão web em http://localhost:8000/app/ |
 | `ml/` | Dataset, divisão sem vazamento, treino e avaliação do YOLOv8 | [README](ml/README.md) |
 
 ## Ordem para colocar tudo de pé

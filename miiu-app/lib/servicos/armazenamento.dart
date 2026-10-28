@@ -1,10 +1,20 @@
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
-/// Endereco padrao do backend. 10.0.2.2 e o "localhost" do computador visto
-/// de dentro do emulador Android. Num celular fisico, use o IP do computador
-/// na rede Wi-Fi (ex.: http://192.168.0.10:8000), ajustavel em Ajustes.
-const String urlPadrao = 'http://10.0.2.2:8000';
+const String _urlCompilada = String.fromEnvironment('API_URL');
+
+/// Endereco padrao do backend, na ordem:
+/// 1. o definido na compilacao:
+///    flutter build apk --release --dart-define=API_URL=https://SEU-DOMINIO.ngrok-free.dev
+/// 2. na versao web servida pelo backend (/app/), o endereco da propria pagina;
+/// 3. 10.0.2.2, o "localhost" do computador visto de dentro do emulador Android.
+/// O endereco tambem pode ser trocado em Ajustes.
+String get urlPadrao {
+  if (_urlCompilada.isNotEmpty) return _urlCompilada;
+  if (kIsWeb) return Uri.base.origin;
+  return 'http://10.0.2.2:8000';
+}
 
 /// Preferencias locais. O app nao tem login: o aparelho e identificado por
 /// um UUID gerado na primeira execucao, e o cidadao acompanha os reportes
@@ -34,7 +44,9 @@ class Armazenamento {
       limpa = limpa.substring(0, limpa.length - 1);
     }
     if (!limpa.startsWith('http://') && !limpa.startsWith('https://')) {
-      limpa = 'http://$limpa';
+      // IP da rede local usa http; um dominio (ngrok, nuvem) usa https
+      final local = RegExp(r'^(localhost|\d{1,3}(\.\d{1,3}){3})(:\d+)?$').hasMatch(limpa);
+      limpa = '${local ? 'http' : 'https'}://$limpa';
     }
     await _prefs.setString(_chaveUrl, limpa);
   }

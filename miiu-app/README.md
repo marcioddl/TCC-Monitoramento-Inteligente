@@ -68,6 +68,27 @@ mostra uma notificação fixa enquanto os alertas estiverem ligados.
 Para testar no emulador: rode a simulação ou valide uma ocorrência pelo
 painel, e no emulador abra "..." > Location e mova o ponto para perto dela.
 
+## Versão web (navegador)
+
+O mesmo código roda no navegador, servido pelo próprio backend em `/app/`:
+
+```powershell
+flutter create --platforms web .
+flutter build web --release --base-href /app/
+```
+
+Reinicie o uvicorn e abra `http://localhost:8000/app/` no computador ou o
+endereço do túnel (`https://SEU-DOMINIO.ngrok-free.dev/app/`) no celular.
+Servido pelo backend, o app usa a API do mesmo endereço, sem configurar nada.
+
+Limitações da versão web:
+
+- a localização só funciona em HTTPS (o endereço do ngrok) ou em `localhost`;
+- os alertas de proximidade só funcionam com a página aberta e a tela
+  ligada, e não há push;
+- no computador, "Tirar foto" abre a escolha de arquivo, o que ajuda a testar
+  com fotos do dataset.
+
 ## Notificações push (opcional)
 
 Sem Firebase o app funciona normalmente. Para o push com o app fechado:

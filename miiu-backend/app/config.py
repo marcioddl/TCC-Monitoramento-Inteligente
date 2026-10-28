@@ -56,6 +56,9 @@ class Config(BaseSettings):
     CORS_ORIGENS: str = "http://localhost:5173,http://127.0.0.1:5173"
     # Pasta do painel React compilado (npm run build), servido em /painel
     PAINEL_DIR: str = "../painel/dist"
+    # Pasta do app do cidadao compilado para a web, servido em /app
+    # (flutter build web --release --base-href /app/)
+    APP_WEB_DIR: str = "../miiu-app/build/web"
 
 
 config = Config()

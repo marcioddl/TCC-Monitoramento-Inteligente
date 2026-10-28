@@ -68,7 +68,9 @@ class _TelaConfiguracoesState extends State<TelaConfiguracoes> {
             keyboardType: TextInputType.url,
             decoration: const InputDecoration(
               labelText: 'Endereço da API',
-              helperText: 'Emulador: http://10.0.2.2:8000 · Celular: http://IP-DO-PC:8000',
+              helperText: 'Internet: https://SEU-DOMINIO.ngrok-free.dev\n'
+                  'Mesmo Wi-Fi: http://IP-DO-PC:8000 · Emulador: http://10.0.2.2:8000',
+              helperMaxLines: 2,
               border: OutlineInputBorder(),
             ),
           ),

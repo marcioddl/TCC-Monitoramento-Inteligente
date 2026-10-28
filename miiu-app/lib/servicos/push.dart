@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
 
 import '../firebase_options.dart';
 import 'api.dart';
@@ -19,6 +20,12 @@ class Push {
   static String? erro;
 
   static Future<void> iniciar() async {
+    if (kIsWeb) {
+      // na versao web os alertas aparecem so com a pagina aberta
+      erro = 'push indisponivel na versao web';
+      unawaited(_registrar());
+      return;
+    }
     try {
       await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
       final mensageria = FirebaseMessaging.instance;
