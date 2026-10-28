@@ -223,12 +223,14 @@ def main() -> None:
     for v, linha in ocorrencia["matriz"].items():
         print(f"  {v:<22}" + "".join(f"{linha[p]:>14}" for p in CLASSES + [NENHUMA]))
 
-    print("\nlimiar de triagem  automacao  precisao_auto  para_triagem")
+    print(f"\n{'limiar':>8}{'automacao':>11}{'precisao_auto':>15}{'para_triagem':>14}{'alarmes_neg':>13}")
     for t in tabela_limiar:
         marca = "  <- backend" if abs(t["limiar"] - args.limiar) < 1e-9 else ""
-        auto = f"{t['automacao']:.3f}" if t["automacao"] is not None else "  -  "
-        prec = f"{t['precisao_automatica']:.3f}" if t["precisao_automatica"] is not None else "  -  "
-        print(f"  {t['limiar']:>6.2f}          {auto:>7}      {prec:>7}        {t['para_triagem']:>5}{marca}")
+        auto = f"{t['automacao']:.3f}" if t["automacao"] is not None else "-"
+        prec = f"{t['precisao_automatica']:.3f}" if t["precisao_automatica"] is not None else "-"
+        print(f"{t['limiar']:>8.2f}{auto:>11}{prec:>15}{t['para_triagem']:>14}"
+              f"{t['alarmes_em_negativas']:>13}{marca}")
+    print(f"alarmes_neg: imagens sem defeito (de {ocorrencia['negativas']}) com deteccao acima do limiar")
 
     print(f"\nresultados gravados em {saida}")
 

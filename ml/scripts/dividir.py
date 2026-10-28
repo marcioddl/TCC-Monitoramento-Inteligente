@@ -17,6 +17,10 @@ Regras aplicadas:
    (desligue com --manter-aumentos).
 4. Verificacao final: nenhum grupo e nenhum SHA-256 aparece em mais de uma
    particao.
+5. Rotulos so no formato de deteccao (classe x y largura altura). Algumas
+   fontes do Roboflow trazem poligonos de segmentacao, as vezes misturados
+   com caixas no mesmo arquivo, e o YOLO descarta esses arquivos mistos.
+   Cada poligono e convertido na caixa que o envolve.
 
 Uso (a partir da pasta miiu/):
 
@@ -124,6 +128,34 @@ def sortear_particoes(grupos: list[Grupo], semente: int) -> dict[str, str]:
     return destino
 
 
+def normalizar_rotulo(caminho: Path) -> tuple[str, int, bool]:
+    """Devolve o rotulo so com caixas, quantos poligonos foram convertidos e
+    se o arquivo original misturava poligonos e caixas."""
+    linhas, convertidos, caixas_originais = [], 0, 0
+    for linha in caminho.read_text().splitlines():
+        partes = linha.split()
+        if len(partes) == 5:
+            linhas.append(" ".join(partes))
+            caixas_originais += 1
+            continue
+        coords = partes[1:]
+        if len(partes) < 7 or len(coords) % 2:
+            continue  # linha malformada
+        try:
+            xs = [min(max(float(v), 0.0), 1.0) for v in coords[0::2]]
+            ys = [min(max(float(v), 0.0), 1.0) for v in coords[1::2]]
+        except ValueError:
+            continue
+        largura, altura = max(xs) - min(xs), max(ys) - min(ys)
+        if largura <= 0 or altura <= 0:
+            continue
+        cx, cy = (max(xs) + min(xs)) / 2, (max(ys) + min(ys)) / 2
+        linhas.append(f"{partes[0]} {cx:.6f} {cy:.6f} {largura:.6f} {altura:.6f}")
+        convertidos += 1
+    texto = "\n".join(linhas) + ("\n" if linhas else "")
+    return texto, convertidos, bool(convertidos and caixas_originais)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Divisao 70/20/10 sem vazamento")
     parser.add_argument("--semente", type=int, default=SEMENTE)
@@ -142,6 +174,7 @@ def main() -> None:
 
     linhas = []
     descartadas = Counter()
+    poligonos = Counter()  # linhas convertidas e arquivos que misturavam formatos
     sha_por_particao: dict[str, str] = {}
     resumo = {p: {"imagens": 0, "grupos": 0, "negativas": 0,
                   "instancias": Counter(), "origens": Counter(), "classes": Counter()}
@@ -164,7 +197,11 @@ def main() -> None:
 
             shutil.copy2(img.caminho, DATASET / particao / "images" / img.caminho.name)
             if img.rotulo.is_file():
-                shutil.copy2(img.rotulo, DATASET / particao / "labels" / img.rotulo.name)
+                texto, convertidos, misturava = normalizar_rotulo(img.rotulo)
+                (DATASET / particao / "labels" / img.rotulo.name).write_text(texto)
+                poligonos["linhas"] += convertidos
+                poligonos["arquivos"] += bool(convertidos)
+                poligonos["mistos"] += misturava
             else:
                 (DATASET / particao / "labels" / f"{img.caminho.stem}.txt").write_text("")
 
@@ -222,6 +259,11 @@ def main() -> None:
         saida.append(
             f"\nversoes aumentadas fora da avaliacao: val {descartadas['val']}, "
             f"test {descartadas['test']} (use --manter-aumentos para incluir)"
+        )
+    if poligonos["linhas"]:
+        saida.append(
+            f"\npoligonos convertidos em caixas: {poligonos['linhas']} linhas em "
+            f"{poligonos['arquivos']} arquivos ({poligonos['mistos']} misturavam poligono e caixa)"
         )
     saida.append("\nverificacao: nenhum grupo e nenhum SHA-256 em mais de uma particao. OK")
     saida.append(f"\ndata.yaml: {DATASET / 'data.yaml'}")
