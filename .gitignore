@@ -1,0 +1,40 @@
+# Ambiente e credenciais
+.venv/
+venv/
+.env
+*.env
+!.env.example
+**/firebase-*.json
+**/*serviceAccount*.json
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Dados e modelos: pesados e com licencas proprias (CC BY 4.0, ODbL)
+ml/raw/
+ml/work/
+ml/dataset/
+ml/runs/
+ml/resultados/
+*.pt
+*.onnx
+
+# Saidas do backend
+miiu-backend/uploads/*
+!miiu-backend/uploads/.gitkeep
+miiu-backend/resultados_simulacao/
+
+# Painel (o dist/ e versionado: o backend serve o painel compilado)
+painel/node_modules/
+
+# Flutter (o flutter create tambem gera um .gitignore dentro de miiu-app)
+miiu-app/.dart_tool/
+miiu-app/build/
+
+# Editor e sistema
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini

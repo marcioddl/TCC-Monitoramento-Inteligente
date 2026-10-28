@@ -22,6 +22,7 @@ ml/raw/
 ml/work/
 uploads/*
 !uploads/.gitkeep
+resultados_simulacao/
 
 # Imagens soltas
 *.jpg

@@ -10,3 +10,11 @@ python-multipart==0.0.20
 pillow==11.0.0
 pytest==8.3.4
 httpx==0.28.1
+
+# Notificacoes push (usado so quando FIREBASE_CREDENCIAIS estiver preenchido)
+firebase-admin>=6.5,<8
+
+# Visao computacional: inferencia no backend e treinamento em ml/scripts.
+# Para treinar na GPU, instale ANTES o PyTorch com CUDA (ver ml/README.md);
+# sem isso o pip instala a versao so-CPU, que basta para a inferencia.
+ultralytics>=8.3,<9

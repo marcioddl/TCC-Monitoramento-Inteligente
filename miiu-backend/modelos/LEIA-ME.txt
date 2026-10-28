@@ -1,0 +1,2 @@
+Coloque aqui os pesos treinados: miiu_yolov8.pt (gerado por ml/scripts/treinar.py).
+Os arquivos .pt nao sao versionados.

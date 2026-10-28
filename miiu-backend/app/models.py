@@ -30,6 +30,15 @@ class Ocorrencia(Base):
         Enum(ClasseOcorrencia, name="classe_ocorrencia"), nullable=True
     )
     confianca: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # Decisao do gestor na validacao. Fica separada da classe detectada para
+    # permitir medir, em producao, a concordancia entre modelo e gestor.
+    classe_validada: Mapped[ClasseOcorrencia | None] = mapped_column(
+        Enum(ClasseOcorrencia, name="classe_ocorrencia"), nullable=True
+    )
+    # Caixas devolvidas pelo YOLO: [{classe, confianca, caixa: [x1,y1,x2,y2]}]
+    # com coordenadas normalizadas entre 0 e 1
+    deteccoes: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+    modelo_versao: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     status: Mapped[StatusOcorrencia] = mapped_column(
         Enum(StatusOcorrencia, name="status_ocorrencia"),
@@ -56,6 +65,11 @@ class Ocorrencia(Base):
 
     notificacoes = relationship("NotificacaoEnviada", back_populates="ocorrencia")
     auditorias = relationship("Auditoria", back_populates="ocorrencia")
+
+    @property
+    def classe_final(self) -> ClasseOcorrencia:
+        """Melhor informacao disponivel: gestor, depois modelo, depois cidadao."""
+        return self.classe_validada or self.classe_detectada or self.classe_informada
 
 
 class Dispositivo(Base):
@@ -92,6 +106,12 @@ class NotificacaoEnviada(Base):
     enviada_em: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
+    # Distancia entre o dispositivo e a ocorrencia no momento do disparo.
+    # A posicao do dispositivo em si nao e armazenada (LGPD).
+    distancia_m: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # "fcm" quando o push saiu pelo Firebase; "app" quando o alerta foi
+    # entregue apenas na resposta da consulta (app em primeiro plano)
+    canal: Mapped[str] = mapped_column(String(16), default="app", server_default="app")
 
     ocorrencia = relationship("Ocorrencia", back_populates="notificacoes")
 
