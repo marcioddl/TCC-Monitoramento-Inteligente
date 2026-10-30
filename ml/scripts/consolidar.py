@@ -9,11 +9,15 @@ Uso (a partir da pasta miiu/):
 
     python ml/scripts/consolidar.py buraco
     python ml/scripts/consolidar.py calcada_danificada
-    python ml/scripts/consolidar.py proprias
+    python ml/scripts/consolidar.py teresina
+    python ml/scripts/consolidar.py redes_sociais
 
-Fotos proprias: rotule no Roboflow com as classes "buraco" e
-"calcada_danificada", exporte no formato YOLOv8 e descompacte em
-ml/raw/proprias/. O mapeamento e feito pelo NOME da classe lido do
+Imagens novas: rotule no Roboflow com as classes "buraco" e
+"calcada_danificada" e exporte no formato YOLOv8, sem aumentos. As fotos
+tiradas pelo autor em Teresina vao em ml/raw/proprias/ e as coletadas em redes
+sociais (local nao verificado) em ml/raw/redes_sociais/, cada pasta com o seu
+data.yaml. Cada destino vira uma pasta em ml/work/, o que permite avaliar as
+duas origens separadamente. O mapeamento e feito pelo NOME da classe lido do
 data.yaml, entao a ordem das classes no Roboflow nao importa.
 """
 
@@ -47,8 +51,12 @@ FONTES = {
         ("calcada/sidewalk_objdet", "roboflow:objectdetection-xkyum/sidewalk-gbw7n",
          "CC BY 4.0", {0: INDICE["calcada_danificada"]}),
     ],
-    "proprias": [
+    "teresina": [
         ("proprias", "captura propria (Teresina-PI)", "propria", None),
+    ],
+    "redes_sociais": [
+        ("redes_sociais", "imagens publicas de redes sociais",
+         "uso academico, sem redistribuicao", None),
     ],
 }
 

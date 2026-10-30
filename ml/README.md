@@ -23,16 +23,22 @@ por SHA-256, remapeamento dos índices (0 = buraco, 1 = calçada danificada),
 prefixo de proveniência e `manifesto.csv`. O `pothole_bradwyer` continua fora
 (licença ODbL).
 
-**Fotos próprias de Teresina.** Rotule no Roboflow com as classes `buraco` e
-`calcada_danificada`, exporte no formato YOLOv8, descompacte em
-`ml\raw\proprias\` e rode:
+**Imagens novas.** Rotule no Roboflow com as classes `buraco` e
+`calcada_danificada` (uma caixa por defeito) e exporte no formato YOLOv8, com
+Auto-Orient, Resize "Fit within 1280" e sem aumentos. Separe por origem, cada
+pasta com o seu `data.yaml`:
+
+- `ml\raw\proprias\`: fotos tiradas pelo autor em Teresina;
+- `ml\raw\redes_sociais\`: imagens públicas de redes sociais (local não verificado).
 
 ```powershell
-python ml\scripts\consolidar.py proprias
+python ml\scripts\consolidar.py teresina
+python ml\scripts\consolidar.py redes_sociais
 ```
 
 O mapeamento é feito pelo nome da classe lido do `data.yaml`, então a ordem
-das classes no Roboflow não importa.
+das classes no Roboflow não importa. Cada destino vira uma pasta em
+`ml\work\`, e assim as duas origens podem ser avaliadas separadamente.
 
 ## 2. Dividir sem vazamento
 
@@ -49,7 +55,12 @@ no teste, e as métricas ficariam infladas. Por isso o script:
 2. estratifica por classe e origem (cada fonte contribui com 70/20/10);
 3. mantém **uma imagem por grupo** em validação e teste (as versões
    aumentadas restantes ficam fora; use `--manter-aumentos` para incluí-las);
-4. confere no fim que nenhum grupo e nenhum SHA-256 aparece em duas partições.
+4. confere, antes de apagar o dataset atual, que nenhum grupo e nenhum SHA-256
+   aparece em duas partições;
+5. é **incremental**: se já existe uma divisão, cada grupo conhecido continua
+   na mesma partição e só os grupos novos são sorteados em 70/20/10. O teste
+   antigo continua valendo, e os modelos de antes e depois das imagens novas
+   podem ser comparados nas mesmas fotos. `--refazer` sorteia tudo de novo.
 
 Gera `ml\dataset\data.yaml`, `divisao.csv` (imagem a imagem) e `resumo.txt`
 (contagens por partição, classe e origem, para a tabela do dataset na
@@ -102,7 +113,21 @@ Dois níveis de métricas, no conjunto de teste (nunca visto no treino):
   backend.
 
 Resultados em `ml\resultados\<nome>\`: `metricas.json`,
-`metricas_por_classe.csv`, `limiar.csv`, `previsoes.csv` e os gráficos.
+`metricas_por_classe.csv`, `limiar.csv`, `previsoes.csv` (com a origem e o
+brilho médio de cada imagem, para separar as noturnas) e os gráficos. A saída
+também traz os acertos por origem.
+
+**Teste de generalização.** Antes de as imagens novas entrarem no treino,
+avalie o modelo atual nelas, que ele nunca viu:
+
+```powershell
+python ml\scripts\avaliar.py --pasta ml\work\teresina --nome generalizacao_teresina
+python ml\scripts\avaliar.py --pasta ml\work\redes_sociais --nome generalizacao_redes
+```
+
+O `--pasta` aceita qualquer pasta com `images\` e `labels\`. Depois do
+retreino, compare os modelos de antes e depois na mesma validação
+(`--particao val`) e só então rode o teste final.
 
 ## Versionamento
 

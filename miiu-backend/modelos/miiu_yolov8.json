@@ -1,6 +1,6 @@
 {
-  "gerado_em": "2026-10-28T10:51:37",
-  "execucao": "C:\\Users\\Marcio Felipe\\miiu\\ml\\runs\\miiu_yolov8s_20261028_1020",
+  "gerado_em": "2026-10-30T02:56:42",
+  "execucao": "C:\\Users\\Marcio Felipe\\miiu\\ml\\runs\\miiu_yolov8s_20261030_0219",
   "pesos_iniciais": "yolov8s.pt",
   "dados": "C:\\Users\\Marcio Felipe\\miiu\\ml\\dataset\\data.yaml",
   "parametros": {
@@ -10,14 +10,15 @@
     "batch": 16,
     "fracao": 1.0,
     "semente": 42,
-    "dispositivo": "0"
+    "otimizador": "auto"
   },
-  "epocas_executadas": 100,
+  "epocas_executadas": 95,
+  "melhor_epoca": 70,
   "metricas_validacao": {
-    "metrics/precision(B)": 0.6864,
-    "metrics/recall(B)": 0.5671,
-    "metrics/mAP50(B)": 0.5733,
-    "metrics/mAP50-95(B)": 0.2332
+    "metrics/precision(B)": 0.6623,
+    "metrics/recall(B)": 0.5739,
+    "metrics/mAP50(B)": 0.5622,
+    "metrics/mAP50-95(B)": 0.252
   },
   "ambiente": {
     "python": "3.13.14",

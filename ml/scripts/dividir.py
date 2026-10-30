@@ -21,13 +21,20 @@ Regras aplicadas:
    fontes do Roboflow trazem poligonos de segmentacao, as vezes misturados
    com caixas no mesmo arquivo, e o YOLO descarta esses arquivos mistos.
    Cada poligono e convertido na caixa que o envolve.
+6. Divisao incremental: se ja existe uma divisao (ml/dataset/divisao.csv),
+   cada grupo conhecido continua na mesma particao e so os grupos novos
+   (por exemplo, as fotos de Teresina) sao sorteados em 70/20/10. Assim o
+   teste antigo continua valendo e os modelos antes e depois das fotos novas
+   podem ser comparados nas mesmas imagens. Use --refazer para sortear tudo
+   de novo.
 
 Uso (a partir da pasta miiu/):
 
     python ml/scripts/dividir.py
 
 Le todas as pastas de ml/work/ e grava ml/dataset/ (apagado e recriado),
-com data.yaml, divisao.csv e resumo.txt.
+com data.yaml, divisao.csv e resumo.txt. A divisao anterior fica salva em
+ml/resultados/divisao_anterior.csv.
 """
 
 import argparse
@@ -39,7 +46,9 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from comum import CLASSES, DATASET, EXTENSOES, SEMENTE, WORK, grupo_da_imagem, ler_rotulos
+from comum import (
+    CLASSES, DATASET, EXTENSOES, RESULTADOS, SEMENTE, WORK, grupo_da_imagem, ler_rotulos,
+)
 
 PARTICOES = ("train", "val", "test")
 PROPORCOES = {"train": 0.70, "val": 0.20, "test": 0.10}
@@ -102,13 +111,52 @@ def carregar_grupos() -> list[Grupo]:
     return list(grupos.values())
 
 
-def sortear_particoes(grupos: list[Grupo], semente: int) -> dict[str, str]:
-    """Distribui os grupos de cada estrato (classe, origem) em 70/20/10."""
+def ler_divisao_anterior() -> dict[str, str]:
+    """grupo -> particao da divisao atual. Se ml/dataset sumiu (por exemplo,
+    uma execucao interrompida), usa a copia salva em ml/resultados."""
+    for arquivo in (DATASET / "divisao.csv", RESULTADOS / "divisao_anterior.csv"):
+        if arquivo.is_file():
+            with open(arquivo, encoding="utf-8") as f:
+                anterior = {linha["grupo"]: linha["particao"] for linha in csv.DictReader(f)}
+            print(f"divisao anterior: {arquivo} ({len(anterior)} grupos)")
+            return anterior
+    return {}
+
+
+def imagens_da_particao(g: Grupo, particao: str, manter_aumentos: bool) -> list[Imagem]:
+    """Em validacao e teste fica uma imagem por grupo (regra 3)."""
+    imagens = sorted(g.imagens, key=lambda i: i.caminho.name)
+    return imagens if particao == "train" or manter_aumentos else imagens[:1]
+
+
+def conferir_vazamento(grupos: list[Grupo], destino: dict[str, str], manter_aumentos: bool) -> None:
+    """Confere os SHA-256 antes de apagar o dataset atual: se uma mesma imagem
+    cairia em duas particoes, para sem mexer em nada."""
+    vistos: dict[str, tuple[str, str]] = {}
+    for g in grupos:
+        particao = destino[g.chave]
+        for img in imagens_da_particao(g, particao, manter_aumentos):
+            anterior = vistos.setdefault(img.sha256, (particao, img.caminho.name))
+            if anterior[0] != particao:
+                raise SystemExit(
+                    f"VAZAMENTO: a mesma imagem esta em {anterior[1]} ({anterior[0]}) e em "
+                    f"{img.caminho.name} ({particao}). Remova a copia e rode de novo; "
+                    "o dataset atual nao foi alterado."
+                )
+
+
+def sortear_particoes(grupos: list[Grupo], semente: int,
+                      anterior: dict[str, str]) -> dict[str, str]:
+    """Mantem a particao dos grupos ja conhecidos e distribui os novos de
+    cada estrato (classe, origem) em 70/20/10."""
+    destino: dict[str, str] = {}
     estratos: dict[tuple[str, str], list[Grupo]] = defaultdict(list)
     for g in grupos:
-        estratos[(g.classe, g.origem)].append(g)
+        if anterior.get(g.chave) in PARTICOES:
+            destino[g.chave] = anterior[g.chave]
+        else:
+            estratos[(g.classe, g.origem)].append(g)
 
-    destino: dict[str, str] = {}
     sorteio = random.Random(semente)
     for chave in sorted(estratos):
         membros = sorted(estratos[chave], key=lambda g: g.chave)
@@ -161,11 +209,21 @@ def main() -> None:
     parser.add_argument("--semente", type=int, default=SEMENTE)
     parser.add_argument("--manter-aumentos", action="store_true",
                         help="manter todas as versoes aumentadas tambem em val e test")
+    parser.add_argument("--refazer", action="store_true",
+                        help="ignorar a divisao existente e sortear todos os grupos de novo")
     args = parser.parse_args()
 
     grupos = carregar_grupos()
-    destino = sortear_particoes(grupos, args.semente)
+    anterior = {} if args.refazer else ler_divisao_anterior()
+    destino = sortear_particoes(grupos, args.semente, anterior)
+    mantidos = sum(1 for g in grupos if anterior.get(g.chave) in PARTICOES)
+    novos = Counter(destino[g.chave] for g in grupos if anterior.get(g.chave) not in PARTICOES)
 
+    conferir_vazamento(grupos, destino, args.manter_aumentos)
+
+    if (DATASET / "divisao.csv").is_file():
+        RESULTADOS.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(DATASET / "divisao.csv", RESULTADOS / "divisao_anterior.csv")
     if DATASET.exists():
         shutil.rmtree(DATASET)
     for p in PARTICOES:
@@ -182,10 +240,8 @@ def main() -> None:
 
     for g in sorted(grupos, key=lambda g: g.chave):
         particao = destino[g.chave]
-        imagens = sorted(g.imagens, key=lambda i: i.caminho.name)
-        if particao != "train" and not args.manter_aumentos:
-            descartadas[particao] += len(imagens) - 1
-            imagens = imagens[:1]
+        imagens = imagens_da_particao(g, particao, args.manter_aumentos)
+        descartadas[particao] += len(g.imagens) - len(imagens)
 
         r = resumo[particao]
         r["grupos"] += 1
@@ -260,6 +316,14 @@ def main() -> None:
             f"\nversoes aumentadas fora da avaliacao: val {descartadas['val']}, "
             f"test {descartadas['test']} (use --manter-aumentos para incluir)"
         )
+    if anterior:
+        saida.append(
+            f"\ndivisao incremental: {mantidos} grupos mantidos na particao anterior; "
+            f"{sum(novos.values())} grupos novos sorteados "
+            f"(train {novos['train']}, val {novos['val']}, test {novos['test']})"
+        )
+    else:
+        saida.append(f"\ndivisao completa: {total_grupos} grupos sorteados (semente {args.semente})")
     if poligonos["linhas"]:
         saida.append(
             f"\npoligonos convertidos em caixas: {poligonos['linhas']} linhas em "

@@ -16,16 +16,25 @@ Uso (a partir da pasta miiu/):
 
     python ml/scripts/avaliar.py
     python ml/scripts/avaliar.py --pesos ml/runs/<execucao>/weights/best.pt
+    python ml/scripts/avaliar.py --pasta ml/work/teresina --nome generalizacao_teresina
 
-Resultados em ml/resultados/<nome>/ (JSON, CSVs e graficos).
+Com --pasta, avalia uma pasta com images/ e labels/ em vez de uma particao
+do dataset. Serve para o teste de generalizacao: medir o modelo em imagens
+de Teresina antes de elas entrarem no treino.
+
+Resultados em ml/resultados/<nome>/ (JSON, CSVs e graficos). O previsoes.csv
+traz tambem o brilho medio de cada imagem (0 a 255), para separar as fotos
+noturnas na analise.
 """
 
 import argparse
 import csv
 import json
-from collections import Counter
+from collections import Counter, defaultdict
 from datetime import datetime
 from pathlib import Path
+
+from PIL import Image, ImageStat
 
 from comum import CLASSES, DATASET, EXTENSOES, MODELO_BACKEND, RESULTADOS, ler_rotulos
 
@@ -36,11 +45,27 @@ def f1(p: float, r: float) -> float:
     return 2 * p * r / (p + r) if (p + r) else 0.0
 
 
-def ler_particao(dados: Path, particao: str) -> list[tuple[Path, str]]:
-    """(imagem, classe verdadeira) da particao; 'negativa' se nao ha caixas."""
-    pasta = dados.parent / particao / "images"
+def brilho(caminho: Path) -> float:
+    """Luminancia media (0 = preto, 255 = branco); fotos noturnas ficam baixas."""
+    try:
+        with Image.open(caminho) as im:
+            cinza = im.convert("L")
+            cinza.thumbnail((256, 256))
+            return round(ImageStat.Stat(cinza).mean[0], 1)
+    except OSError:
+        return -1.0
+
+
+def origem_da_imagem(nome: str) -> str:
+    """'proprias__foto.jpg' -> 'proprias' (prefixo gravado pelo consolidar.py)."""
+    return nome.split("__", 1)[0] if "__" in nome else "-"
+
+
+def ler_particao(pasta: Path) -> list[tuple[Path, str]]:
+    """(imagem, classe verdadeira) de uma pasta images/ com labels/ ao lado;
+    'negativa' se a imagem nao tem caixas."""
     if not pasta.is_dir():
-        raise SystemExit(f"particao nao encontrada: {pasta}")
+        raise SystemExit(f"pasta de imagens nao encontrada: {pasta}")
     itens = []
     for img in sorted(pasta.iterdir()):
         if img.suffix.lower() not in EXTENSOES:
@@ -93,8 +118,9 @@ def metricas_ocorrencia(modelo, itens, args) -> tuple[dict, list[dict], list[dic
             confianca = float(caixas.conf[melhor])
         else:
             classe, confianca = NENHUMA, 0.0
-        previsoes.append({"imagem": img.name, "verdade": verdade,
-                          "previsto": classe, "confianca": round(confianca, 4)})
+        previsoes.append({"imagem": img.name, "origem": origem_da_imagem(img.name),
+                          "verdade": verdade, "previsto": classe,
+                          "confianca": round(confianca, 4), "brilho": brilho(img)})
 
     positivas = [p for p in previsoes if p["verdade"] != "negativa"]
     negativas = [p for p in previsoes if p["verdade"] == "negativa"]
@@ -135,6 +161,18 @@ def metricas_ocorrencia(modelo, itens, args) -> tuple[dict, list[dict], list[dic
     linha_limiar = next(t for t in tabela_limiar if abs(t["limiar"] - args.limiar) < 1e-9) \
         if any(abs(t["limiar"] - args.limiar) < 1e-9 for t in tabela_limiar) else None
 
+    # acertos por fonte (prefixo do arquivo), no limiar do backend
+    por_origem: dict[str, Counter] = defaultdict(Counter)
+    for p in previsoes:
+        c = por_origem[p["origem"]]
+        if p["verdade"] == "negativa":
+            c["negativas"] += 1
+            c["alarmes"] += p["previsto"] != NENHUMA and p["confianca"] >= args.limiar
+        else:
+            c["positivas"] += 1
+            c["acertos"] += p["previsto"] == p["verdade"]
+            c["automaticas"] += p["previsto"] == p["verdade"] and p["confianca"] >= args.limiar
+
     resumo = {
         "imagens": len(previsoes), "positivas": len(positivas), "negativas": len(negativas),
         "acuracia": round(acertos / len(positivas), 4) if positivas else None,
@@ -143,6 +181,7 @@ def metricas_ocorrencia(modelo, itens, args) -> tuple[dict, list[dict], list[dic
         "matriz": {v: {p: matriz[v][p] for p in CLASSES + [NENHUMA]} for v in CLASSES},
         "limiar_backend": args.limiar,
         "no_limiar_backend": linha_limiar,
+        "por_origem": {o: dict(c) for o, c in sorted(por_origem.items())},
     }
     return resumo, tabela_limiar, previsoes
 
@@ -167,27 +206,50 @@ def main() -> None:
                         help="confianca minima de uma caixa (igual a MODELO_CONF_MIN do backend)")
     parser.add_argument("--limiar", type=float, default=0.50,
                         help="limiar de triagem do backend (INFERENCIA_LIMIAR)")
+    parser.add_argument("--pasta", default=None,
+                        help="avaliar uma pasta com images/ e labels/ (ex.: ml/work/teresina) "
+                             "em vez de uma particao do dataset")
     parser.add_argument("--nome", default=None)
     args = parser.parse_args()
 
-    pesos, dados = Path(args.pesos), Path(args.dados)
-    for arquivo in (pesos, dados):
-        if not arquivo.is_file():
-            raise SystemExit(f"arquivo nao encontrado: {arquivo}")
+    pesos = Path(args.pesos)
+    if not pesos.is_file():
+        raise SystemExit(f"arquivo nao encontrado: {pesos}")
+    agora = f"{datetime.now():%Y%m%d_%H%M}"
+    if args.pasta:
+        pasta = Path(args.pasta).resolve()
+        if not (pasta / "images").is_dir():
+            raise SystemExit(f"a pasta precisa ter images/ e labels/: {pasta}")
+        alvo, particao = pasta.name, "test"
+    else:
+        dados = Path(args.dados)
+        if not dados.is_file():
+            raise SystemExit(f"arquivo nao encontrado: {dados}")
+        pasta, alvo, particao = dados.parent / args.particao, args.particao, args.particao
+
+    saida = RESULTADOS / (args.nome or f"{pesos.stem}_{alvo}_{agora}")
+    saida.mkdir(parents=True, exist_ok=True)
+    if args.pasta:
+        # data.yaml provisorio com todas as particoes apontando para a pasta
+        dados = saida / "dados_pasta.yaml"
+        nomes = "\n".join(f"  {i}: {nome}" for i, nome in enumerate(CLASSES))
+        dados.write_text(
+            f"path: {pasta.as_posix()}\ntrain: images\nval: images\ntest: images\n"
+            f"names:\n{nomes}\n",
+            encoding="utf-8",
+        )
 
     from ultralytics import YOLO
 
-    saida = RESULTADOS / (args.nome or f"{pesos.stem}_{args.particao}_{datetime.now():%Y%m%d_%H%M}")
-    saida.mkdir(parents=True, exist_ok=True)
     modelo = YOLO(str(pesos))
 
-    print(f"avaliando {pesos} na particao '{args.particao}'...")
-    deteccao = metricas_deteccao(modelo, dados, args.particao, args, saida)
-    itens = ler_particao(dados, args.particao)
+    print(f"avaliando {pesos} em '{alvo}'...")
+    deteccao = metricas_deteccao(modelo, dados, particao, args, saida)
+    itens = ler_particao(pasta / "images")
     ocorrencia, tabela_limiar, previsoes = metricas_ocorrencia(modelo, itens, args)
 
     relatorio = {
-        "pesos": str(pesos), "particao": args.particao,
+        "pesos": str(pesos), "avaliado": alvo, "pasta": str(pasta),
         "avaliado_em": datetime.now().isoformat(timespec="seconds"),
         "deteccao": deteccao, "ocorrencia": ocorrencia,
     }
@@ -204,7 +266,7 @@ def main() -> None:
 
     g = deteccao["geral"]
     print("\n" + "=" * 70)
-    print(f"DETECCAO ({args.particao})        precisao  recall    F1    mAP@50  mAP@50:95")
+    print(f"{'DETECCAO (' + alvo + ')':<26}precisao  recall    F1    mAP@50  mAP@50:95")
     print("=" * 70)
     for nome, v in [("todas", g)] + list(deteccao["por_classe"].items()):
         print(f"{nome:<26}{v['precisao']:>9.3f}{v['recall']:>8.3f}{v['f1']:>7.3f}"
@@ -222,6 +284,13 @@ def main() -> None:
     print(f"  {'':<22}" + "".join(f"{p[:12]:>14}" for p in CLASSES + [NENHUMA]))
     for v, linha in ocorrencia["matriz"].items():
         print(f"  {v:<22}" + "".join(f"{linha[p]:>14}" for p in CLASSES + [NENHUMA]))
+
+    print(f"\n  {'origem':<22}{'positivas':>10}{'acertos':>9}{'automaticas':>13}"
+          f"{'negativas':>11}{'alarmes':>9}")
+    for origem, c in ocorrencia["por_origem"].items():
+        print(f"  {origem:<22}{c.get('positivas', 0):>10}{c.get('acertos', 0):>9}"
+              f"{c.get('automaticas', 0):>13}{c.get('negativas', 0):>11}{c.get('alarmes', 0):>9}")
+    print(f"  (automaticas e alarmes com confianca >= {args.limiar:.2f}, o limiar do backend)")
 
     print(f"\n{'limiar':>8}{'automacao':>11}{'precisao_auto':>15}{'para_triagem':>14}{'alarmes_neg':>13}")
     for t in tabela_limiar:
