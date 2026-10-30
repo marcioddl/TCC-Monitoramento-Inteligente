@@ -38,3 +38,6 @@ miiu-app/build/
 .idea/
 Thumbs.db
 desktop.ini
+
+# Prints da monografia (fora do GitHub)
+prints_monografia/
